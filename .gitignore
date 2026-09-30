@@ -1,0 +1,17 @@
+# Generated files: rebuild with `python src/generator.py && python src/ingest.py`
+data/
+db/
+rejects/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# Editor / OS / local tooling
+.vscode/
+.idea/
+.DS_Store
+.claude/settings.local.json
