@@ -1,0 +1,9 @@
+version: 2
+
+sources:
+  - name: raw
+    database: raw
+    schema: main
+    tables:
+      - name: dim_customer
+      - name: fact_orders

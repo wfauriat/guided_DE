@@ -20,7 +20,8 @@ rejects/   rows/lines refused by the loaders (*.tsv): generated, not versioned
 src/       Python: paths.py (all paths, cwd-independent), generator.py, load_*.py, ingest.py
 sql/       schema.sql, load_raw.sql, explore.sql, custom_explore.sql (user's own), flash_forward.sql (one-liners for the TODO topics), sessionization.sql, funnel.sql
 scripts/   explore.sh
-doc/       sql_/bash_/duckdb_/pandas_/parquet_cheatsheet.md, module1_DE.md, module1_DS.md, module2_DE.md
+doc/       sql_/bash_/duckdb_/pandas_/parquet_/dbt_cheatsheet.md, module1_DE.md, module1_DS.md, module2_DE.md
+dbt_marketplace/  dbt project (dbt_project.yml, local profiles.yml, models/)
 pynb/      notebooks: duckDB_explore.ipynb, pandas_explore.ipynb (parquet_explore.ipynb is still in the repo root)
 ```
 
@@ -56,7 +57,7 @@ Regenerating overwrites `data/`. Row counts: 200 customers, 25 sellers, 120 prod
 - `doc/sql_cheatsheet.md`, `sql/flash_forward.sql`: SQL cheatsheet (grows with the practice) and one-liners for the remaining TODO topics.
 - Ingestion (typed database `db/marketplace.db`, separate from the throwaway `db/scratch.db`): see "Ingestion" below.
 
-## Learning tracks (SQL, DuckDB, pandas, Parquet: done; dbt next)
+## Learning tracks (SQL, DuckDB, pandas, Parquet: done; dbt in progress)
 
 The user is building `sql/custom_explore.sql` by hand while Claude walks through one concept per step, with a small "your turn" exercise each time. After each step is done, Claude adds it to `doc/sql_cheatsheet.md` (which has a trailing comment listing planned sections).
 
@@ -112,14 +113,15 @@ Not done (optional): plotting, performance notes beyond `apply`.
 Covered: Parquet vs Arrow roles, `to_parquet`/`read_parquet`, types surviving (vs CSV), compression options (zstd a good default), column pruning and `filters=`, schema/metadata inspection, `pyarrow` tables and compute, DuckDB `COPY ... TO ... (FORMAT PARQUET)` and querying files in place, partitioned (hive) datasets with pandas/pyarrow/DuckDB, where Parquet sits in the pipeline (raw -> typed db -> Parquet lake -> SQL transformations -> marts -> consumers).
 Gotchas found: partitioning by a high-cardinality column gives 199 tiny files (719 KB vs 27.6 KB single file); rewriting an existing partition adds a file and duplicates rows on read (delete the folder first); `pd.read_parquet(folder)` drops columns missing from the first file (DuckDB `union_by_name=true` keeps them); SQLite-origin dates arrive as VARCHAR, so convert while exporting. A typed export of all 10 tables to `db/parquet/lake/` (zstd, 134 KB) was sketched in the cheatsheet but not made a repo script.
 
-## Next steps
+## dbt track (in progress, `doc/dbt_cheatsheet.md`, project `dbt_marketplace/`)
 
-**dbt with DuckDB (next, to set up together).** Reference: `doc/module2_DE.md` (read by headings). Plan and open points:
-- Engine: DuckDB, via the installed dbt 2.0.6 (only `dbt debug` and a one-view `dbt run` verified on a throwaway project with `type: duckdb`; sources, tests, incremental and external materializations are unverified). Do not install `dbt-duckdb` into `/opt/venvs/pyDS` (see Stack).
-- Suggested layout: a `dbt_marketplace/` folder in the repo (project + `profiles.yml` kept local or pointing into `db/`), model folders staging / intermediate / marts.
-- Sources: either attach `db/marketplace.db` (SQLite extension) or read a typed Parquet lake; decide first. A lake export script (dates parsed to TIMESTAMP) may be needed.
-- Models to build from existing work: staging per table, `fct_orders_enriched` (joined dimensions, order totals), `fct_sessions` and `fct_funnel` (from `sql/sessionization.sql` / `sql/funnel.sql`), monthly revenue mart.
-- Tests: translate the `CHECKS` assertions in `src/ingest.py` (unique, not_null, relationships, accepted_values) into YAML tests; known data warnings: 238 orders and 892 events before the customer's signup date.
-- Then: decide whether `src/ingest.py` stays the ingestion step and dbt takes over from typed tables.
+Set up and verified (dbt 2.0.6 + DuckDB, nothing installed):
+- `dbt_marketplace/profiles.yml` is local to the project: every command needs `--profiles-dir .` (or `export DBT_PROFILES_DIR=.`), run from `dbt_marketplace/`. Output db `db/dbt_marketplace.duckdb`; `db/marketplace.db` is attached read-only as `raw` (DuckDB sqlite extension, `attach:` in the profile). Sources were chosen over a Parquet lake: no export script needed.
+- `.gitignore` excludes `dbt_marketplace/target/`, `logs/`, `dbt_packages/`.
+- Steps done with the user: (1) first model (`hello.sql`, `dbt run`, compiled SQL in `target/`, `dbt show`); (2) `source()` / `ref()`, `_sources.yml`, `dbt ls --select x+`. Step 2 files were tested by Claude, then deleted so the user writes them (`models/staging/_sources.yml`, `stg_customers.sql`, `stg_orders.sql`, `models/customer_orders.sql`); user exercise: add `dim_city` source + `stg_cities`, show city name in `customer_orders`. Check what exists in `dbt_marketplace/models/` before continuing.
+- Gotchas found: a source needs `database: raw` (the attach alias) or dbt looks in its own output db; `dbt run` of a view succeeds even if the source is unreadable (use `dbt show`); `raw` exists only inside dbt's connection; "unused configuration paths" warning is harmless until a folder has models.
+- **Next**: materializations (view vs table, per-folder config in `dbt_project.yml`), then tests as YAML (unique, not_null, relationships, accepted_values; translate `CHECKS` from `src/ingest.py`; known warnings: 238 orders and 892 events before signup), then intermediate/marts (`fct_orders_enriched`, monthly revenue), docs, Jinja/macros, `fct_sessions`/`fct_funnel`, seeds, snapshots, incremental (unverified on this engine). Finally decide whether `src/ingest.py` stays the ingestion step. Reference: `doc/module2_DE.md` (by headings). `hello.sql` is a leftover throwaway model; delete it when convenient.
+
+## Next steps
 
 Other options, any time: the SQL TODO checklist in `doc/sql_cheatsheet.md` (CASE WHEN first); refinements (integer cents for money, indexes on FK columns, batching with `executemany`); applying `doc/module1_DS.md` topics (dataclasses, type hints) to the loaders; optional installs suggested: ruff, sqlfluff, polars.

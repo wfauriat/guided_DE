@@ -1,0 +1,10 @@
+name: dbt_marketplace
+version: "1.0.0"
+profile: dbt_marketplace
+
+model-paths: ["models"]
+
+models:
+  dbt_marketplace:
+    staging:
+      +materialized: view

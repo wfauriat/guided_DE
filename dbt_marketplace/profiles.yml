@@ -1,0 +1,14 @@
+dbt_marketplace:
+  target: dev
+  outputs:
+    dev:
+      type: duckdb
+      path: ../db/dbt_marketplace.duckdb
+      threads: 1
+      extensions:
+        - sqlite
+      attach:
+        - path: ../db/marketplace.db
+          alias: raw
+          type: sqlite
+          read_only: true
