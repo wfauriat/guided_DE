@@ -20,9 +20,11 @@ rejects/   rows/lines refused by the loaders (*.tsv): generated, not versioned
 src/       Python: paths.py (all paths, cwd-independent), generator.py, load_*.py, ingest.py
 sql/       schema.sql, load_raw.sql, explore.sql, custom_explore.sql (user's own), flash_forward.sql (one-liners for the TODO topics), sessionization.sql, funnel.sql
 scripts/   explore.sh
-doc/       sql_/bash_/duckdb_/pandas_cheatsheet.md, module1_DE.md, module1_DS.md, module2_DE.md
-*.ipynb    notebooks in the repo root (duckDB_explore.ipynb, pandas_explore.ipynb): `data/...` paths are relative to the root
+doc/       sql_/bash_/duckdb_/pandas_/parquet_cheatsheet.md, module1_DE.md, module1_DS.md, module2_DE.md
+pynb/      notebooks: duckDB_explore.ipynb, pandas_explore.ipynb (parquet_explore.ipynb is still in the repo root)
 ```
+
+Notebooks use repo-root-relative paths (`data/...`, `db/...`). Jupyter's default working directory is the notebook's own folder, so run them with the kernel's cwd set to the repo root (start JupyterLab from the root, or in VS Code set `jupyter.notebookFileRoot` to `${workspaceFolder}`); otherwise stray folders appear (an empty `pynb/db/parquet/` was created that way and can be deleted). Parquet outputs go to `db/parquet/` (git-ignored).
 
 Git: repository initialised (branch `main`); the user makes the commits. `.gitignore` excludes `data/`, `db/`, `rejects/`, caches, venvs (rebuild with `python src/generator.py && python src/ingest.py`).
 
@@ -54,7 +56,7 @@ Regenerating overwrites `data/`. Row counts: 200 customers, 25 sellers, 120 prod
 - `doc/sql_cheatsheet.md`, `sql/flash_forward.sql`: SQL cheatsheet (grows with the practice) and one-liners for the remaining TODO topics.
 - Ingestion (typed database `db/marketplace.db`, separate from the throwaway `db/scratch.db`): see "Ingestion" below.
 
-## Learning tracks (SQL: step by step; then DuckDB, pandas)
+## Learning tracks (SQL, DuckDB, pandas, Parquet: done; dbt next)
 
 The user is building `sql/custom_explore.sql` by hand while Claude walks through one concept per step, with a small "your turn" exercise each time. After each step is done, Claude adds it to `doc/sql_cheatsheet.md` (which has a trailing comment listing planned sections).
 
@@ -93,20 +95,31 @@ Findings worth remembering:
 - `csv.writer` writes `\r\n`, so `awk -F,` saw the last field as `"\r"` (seller ratings looked like 0 missing, real: 2). Strip with `tr -d '\r'` in bash.
 - Generator inconsistency, reported as WARNING checks: 238 orders and 892 web events happen before the customer's `signup_date` (dates were generated independently).
 
-## DuckDB track (started, `doc/duckdb_cheatsheet.md`, notebook `duckDB_explore.ipynb`)
+## DuckDB track (started, `doc/duckdb_cheatsheet.md`, notebook `pynb/duckDB_explore.ipynb`)
 
 - Done in three steps: querying CSV/JSON in place (types inferred, empty fields become NULL, `card` as STRUCT), connections and file persistence, `ATTACH ... (TYPE sqlite, READ_ONLY)` on `db/marketplace.db`, dialect (`QUALIFY`, `GROUP BY ALL`, `EXCLUDE`, `::`, `date_trunc`, `julian`, `7/2 = 3.5`), and the pandas bridge (`.df()`, SQL on DataFrames by variable name, `register`).
 - Also done: joining `events` and `orders` DataFrames the right way (aggregate each side first: a direct join gives 44,798 rows), extended with `dim_customer` names; SQL and pandas versions compared.
 - Gotchas: same data gets different types by source (CSV: DATE/TIMESTAMP, attached SQLite: VARCHAR dates); close notebook connections before rebuilding the SQLite file.
 
-## pandas track (started, `doc/pandas_cheatsheet.md`, notebook `pandas_explore.ipynb`)
+## pandas track (done through reshaping; `doc/pandas_cheatsheet.md`, notebook `pynb/pandas_explore.ipynb`)
 
-Goal: day-to-day pandas idioms on the dataset (not SQL in disguise). Done, step 1: `read_csv` with `parse_dates`, `head/info/dtypes/describe`, `isna().sum()`, `value_counts`, `.dt` accessor, nullable `Int64`, `category`, with a SQL to pandas map.
-Planned next, in this order (each one added to the cheatsheet when done): selecting and filtering (`loc`, masks with the `&`/`|` parenthesis trap, `query`, `isin`, `between`), new columns (`assign`, `np.select` as CASE WHEN, `apply` vs vectorised), `groupby` with `agg`/`transform` (window-function equivalent), `merge`, time series (`resample`, `rolling`, `shift`, `cumsum`), reshaping (`pivot_table`, `melt`). Good exercises: rebuild monthly revenue, top-N per group and sessionization in pandas.
+Goal was day-to-day pandas idioms on the dataset (not SQL in disguise). Covered, in order, each with a cheatsheet section and a SQL to pandas map: load and first look (`read_csv`, `parse_dates`, `info`, `describe`, `isna`, `value_counts`, `Int64`, `category`), selecting and filtering (masks with `& | ~` and the parenthesis trap, `isin`, `between`, `.str`, `query`, `loc`/`iloc`, the NaN `!=` trap), new columns (`assign`, `np.select`, `pd.cut`, `.dt`, `map`, `apply` vs vectorised ~150x), `groupby` (`agg`, `transform`, rank/cumcount/shift, `dropna=False` for NaN keys), `merge` (`validate=`, `indicator=`, NaN keys match in pandas), time series (`resample`, `rolling`, `shift`, `cumsum`; sessionization reproduced exactly), reshaping (`pivot_table`, `crosstab`, `melt`, `get_dummies`, `json_normalize`).
+Key cross-check that held throughout: pandas, DuckDB and SQLite give identical results (monthly revenue 164,703.65 ... 153,575.17; 1,922 sessions; country revenue totals).
+Not done (optional): plotting, performance notes beyond `apply`.
 
-## Next steps (options)
+## Parquet / Arrow track (done; `doc/parquet_cheatsheet.md`, notebook `parquet_explore.ipynb`)
 
-- Continue the pandas track (filtering next), then Arrow and Parquet (write tables to Parquet from DuckDB and pandas, compare size and types with CSV, read back only some columns; a short, self-contained session), then dbt with the DuckDB engine (sources on the marketplace tables, staging and marts models, tests replacing the assertion queries in `ingest.py`; reference: `doc/module2_DE.md`).
-- The SQL TODO checklist in `doc/sql_cheatsheet.md` remains available (CASE WHEN first).
-- Possible refinements: integer cents for money, indexes on FK columns, a view layer, batching with `executemany`.
-- The Python module (`doc/module1_DS.md`) topics such as dataclasses/type hints could be applied to the loaders.
+Covered: Parquet vs Arrow roles, `to_parquet`/`read_parquet`, types surviving (vs CSV), compression options (zstd a good default), column pruning and `filters=`, schema/metadata inspection, `pyarrow` tables and compute, DuckDB `COPY ... TO ... (FORMAT PARQUET)` and querying files in place, partitioned (hive) datasets with pandas/pyarrow/DuckDB, where Parquet sits in the pipeline (raw -> typed db -> Parquet lake -> SQL transformations -> marts -> consumers).
+Gotchas found: partitioning by a high-cardinality column gives 199 tiny files (719 KB vs 27.6 KB single file); rewriting an existing partition adds a file and duplicates rows on read (delete the folder first); `pd.read_parquet(folder)` drops columns missing from the first file (DuckDB `union_by_name=true` keeps them); SQLite-origin dates arrive as VARCHAR, so convert while exporting. A typed export of all 10 tables to `db/parquet/lake/` (zstd, 134 KB) was sketched in the cheatsheet but not made a repo script.
+
+## Next steps
+
+**dbt with DuckDB (next, to set up together).** Reference: `doc/module2_DE.md` (read by headings). Plan and open points:
+- Engine: DuckDB, via the installed dbt 2.0.6 (only `dbt debug` and a one-view `dbt run` verified on a throwaway project with `type: duckdb`; sources, tests, incremental and external materializations are unverified). Do not install `dbt-duckdb` into `/opt/venvs/pyDS` (see Stack).
+- Suggested layout: a `dbt_marketplace/` folder in the repo (project + `profiles.yml` kept local or pointing into `db/`), model folders staging / intermediate / marts.
+- Sources: either attach `db/marketplace.db` (SQLite extension) or read a typed Parquet lake; decide first. A lake export script (dates parsed to TIMESTAMP) may be needed.
+- Models to build from existing work: staging per table, `fct_orders_enriched` (joined dimensions, order totals), `fct_sessions` and `fct_funnel` (from `sql/sessionization.sql` / `sql/funnel.sql`), monthly revenue mart.
+- Tests: translate the `CHECKS` assertions in `src/ingest.py` (unique, not_null, relationships, accepted_values) into YAML tests; known data warnings: 238 orders and 892 events before the customer's signup date.
+- Then: decide whether `src/ingest.py` stays the ingestion step and dbt takes over from typed tables.
+
+Other options, any time: the SQL TODO checklist in `doc/sql_cheatsheet.md` (CASE WHEN first); refinements (integer cents for money, indexes on FK columns, batching with `executemany`); applying `doc/module1_DS.md` topics (dataclasses, type hints) to the loaders; optional installs suggested: ruff, sqlfluff, polars.
