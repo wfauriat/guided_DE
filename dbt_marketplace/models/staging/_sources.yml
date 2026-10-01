@@ -11,3 +11,4 @@ sources:
       - name: dim_product
       - name: fact_orders
       - name: fact_order_items
+      - name: web_events

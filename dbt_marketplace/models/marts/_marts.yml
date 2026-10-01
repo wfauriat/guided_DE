@@ -80,3 +80,41 @@ models:
         description: "Average revenue of the current and the two previous months (frame: 2 preceding rows to current row). The first two months average fewer rows. ROWS-based: only correct while no calendar month is missing."
       - name: running_total
         description: "Cumulative revenue from the first month up to and including this one."
+
+  - name: fct_sessions
+    description: "One row per web session. Sessions are derived, not logged: the log's own session_id is random noise (4,374 distinct values for 6,000 events). Grain: (user_id, session_no)."
+    columns:
+      - name: user_id
+        description: "{{ doc('customer_id') }}"
+        data_tests:
+          - not_null
+      - name: session_no
+        description: "Session number within the user (1, 2, 3, ...). Only (user_id, session_no) identifies a session; session_no alone repeats across users."
+      - name: started_at
+        description: "Timestamp of the first event of the session."
+      - name: ended_at
+        description: "Timestamp of the last event of the session."
+      - name: n_events
+        description: "Number of events in the session."
+      - name: hours
+        description: "Duration of the session in hours, one decimal."
+      - name: viewed
+        description: "True if the session has at least one view event."
+      - name: carted
+        description: "True if the session has at least one add_to_cart event."
+
+  - name: fct_funnel
+    description: "Per session: viewed -> carted -> ordered, where ordered means an order by the same customer between the session start and 7 days later. Order and session are matched on customer and time only (no order-to-session link exists), so in principle one order could count for several sessions (it does not on this data: 0 of the 538 matched orders)."
+    columns:
+      - name: user_id
+        description: "{{ doc('customer_id') }}"
+      - name: session_no
+        description: "Session number within the user."
+      - name: started_at
+        description: "Timestamp of the first event of the session."
+      - name: viewed
+        description: "True if the session has at least one view event."
+      - name: carted
+        description: "True if the session has at least one add_to_cart event."
+      - name: ordered
+        description: "True if the customer placed an order within 7 days after the session start."

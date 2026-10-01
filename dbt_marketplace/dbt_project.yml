@@ -10,3 +10,6 @@ models:
       +materialized: view
     marts:
       +materialized: table
+
+vars:
+  session_gap_days: 7     # a new session starts when a user's gap since their previous event exceeds this (days)

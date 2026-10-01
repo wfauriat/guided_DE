@@ -18,3 +18,21 @@ models:
         description: "Discount in percent; NULL = unknown."
       - name: line_total
         description: "{{ doc('line_total') }}"
+
+  - name: int_events_sessionized
+    description: "Every web event with its session number within the user. A new session starts when the gap since the user's previous event exceeds the project var session_gap_days (default 7 days; this synthetic data has about 6 days between a user's events, 30 minutes would give 5,977 one-event sessions). Override at build time: dbt run --select int_events_sessionized+ --vars '{session_gap_days: 1}'."
+    columns:
+      - name: event_id
+        description: "Primary key of the event."
+      - name: user_id
+        description: "{{ doc('customer_id') }}"
+      - name: event_at
+        description: "When the event happened."
+      - name: event
+        description: "Event type: view, add_to_cart or search."
+      - name: gap_days
+        description: "Days since the same user's previous event. NULL for the user's first event."
+      - name: is_new_session
+        description: "1 on the event that starts a session. The first event has a NULL gap, so the rule needs an explicit IS NULL (NULL > 7 is not true)."
+      - name: session_no
+        description: "Running sum of is_new_session within the user: 1, 2, 3, ..."

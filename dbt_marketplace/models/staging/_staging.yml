@@ -95,3 +95,29 @@ models:
         description: "Country name, unique."
       - name: region
         description: "Geographic region the country belongs to."
+
+  - name: stg_web_events
+    description: "One row per valid web event, from web_events (the loader already rejected the 40 junk log lines). Timestamp typed (the source text 'YYYY-MM-DDTHH:MM:SSZ' becomes a TIMESTAMP, no timezone shift). The log's own session_id is dropped: it is random noise."
+    columns:
+      - name: event_id
+        description: "Primary key of the event."
+        data_tests:
+          - unique
+          - not_null
+      - name: event_at
+        description: "When the event happened (TIMESTAMP, UTC as logged)."
+      - name: user_id
+        description: "{{ doc('customer_id') }}"
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: event
+        description: "Event type: view, add_to_cart or search."
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['view', 'add_to_cart', 'search']
+      - name: product_id
+        description: "Product the event is about (stg_products)."

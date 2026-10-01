@@ -349,6 +349,46 @@ order by 1
 - Do not write a macro for something used once, and do not hide business rules in macros: `money()` is formatting, the discount rule stays in `int_order_items` where it is documented.
 - Idea not done: `safe_pct(numerator, denominator)` = `round(100.0 * numerator / nullif(denominator, 0), 1)` for `mom_pct` (`nullif` avoids division by zero on a month without revenue).
 
+## Sessions and funnel in dbt (the sessionization.sql / funnel.sql work, as models)
+
+```
+stg_web_events          event_at as TIMESTAMP ('YYYY-MM-DDTHH:MM:SSZ' -> replace T/Z -> ::timestamp); the log's session_id is dropped (noise)
+int_events_sessionized  gap_days (lag over a named window), is_new_session, session_no (running sum)
+fct_sessions            one row per (user_id, session_no): started_at, ended_at, n_events, hours, viewed, carted
+fct_funnel              per session: ordered = exists(order by the same customer within 7 days after the session start)
+```
+
+```yaml
+# dbt_project.yml: the threshold is a project var
+vars:
+  session_gap_days: 7
+```
+
+```sql
+-- int_events_sessionized.sql (the heart of it)
+date_diff('second', lag(event_at) over w, event_at) / 86400.0 as gap_days
+...
+window w as (partition by user_id order by event_at, event_id)       -- named window, event_id = deterministic tiebreak
+case when gap_days is null or gap_days > {{ var('session_gap_days') }} then 1 else 0 end as is_new_session
+```
+
+```bash
+# the var is applied when the MODEL is built, not when an inline query reads the built view
+dbt run --select int_events_sessionized+ --vars '{session_gap_days: 1}'
+dbt show --inline "select count(*) from {{ ref('int_events_sessionized') }} where is_new_session = 1"   # 5108 (1 day); 5977 at 30 min; 1922 at 7
+dbt run --select int_events_sessionized+            # back to the default 7 days
+```
+
+- Reproduces the SQLite and pandas numbers exactly: 1,922 sessions, 3.12 events on average (max 22), 633 single-event sessions;
+  funnel 1,572 viewed / 840 carted / 202 carted and ordered (43.7% carted, 24.0% cart-to-order).
+- Two singular tests: `assert_fct_sessions_unique_key` (grain `(user_id, session_no)`) and `assert_fct_sessions_keeps_all_events`
+  (sum of `n_events` equals the number of staged events).
+- `ordered` matches on customer and time only (no order-to-session link exists): in principle an order could count for
+  several sessions; on this data none does (0 of the 538 matched orders).
+- Joining two models that share column names in a check query gives "Ambiguous reference": select from one model at a time.
+- DuckDB differences from the SQLite version: `date_diff('second', a, b) / 86400.0` instead of `julianday` differences,
+  `bool_or(event = 'view')` instead of `max(event = 'view')`, `exists (...)` returns a real boolean.
+
 ## Gotchas met so far
 
 - Creating a view does not run its body: `dbt run` succeeds even if the source table is unreadable. Use `dbt show` (or a table materialization) to actually test.
@@ -359,5 +399,5 @@ order by 1
 
 <!--
 Planned sections, in order:
-- seeds, packages (dbt_utils-style), sessions/funnel models (from sql/sessionization.sql, sql/funnel.sql), snapshots, incremental (unverified on this engine)
+- seeds, packages (dbt_utils-style), snapshots, incremental (unverified on this engine)
 -->
