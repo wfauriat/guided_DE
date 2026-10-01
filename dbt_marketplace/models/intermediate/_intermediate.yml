@@ -1,0 +1,20 @@
+version: 2
+
+models:
+  - name: int_order_items
+    description: "Order lines with their discounted line total. The one place where the discount rule lives; marts sum line_total and never recompute it."
+    columns:
+      - name: order_item_id
+        description: "Primary key of the line."
+      - name: order_id
+        description: "{{ doc('order_id') }}"
+      - name: product_id
+        description: "Product sold."
+      - name: quantity
+        description: "Units sold."
+      - name: unit_price
+        description: "Price per unit at the time of the order."
+      - name: discount_pct
+        description: "Discount in percent; NULL = unknown."
+      - name: line_total
+        description: "{{ doc('line_total') }}"

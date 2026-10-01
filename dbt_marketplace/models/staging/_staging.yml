@@ -1,0 +1,97 @@
+version: 2
+
+models:
+  - name: stg_customers
+    description: "One row per customer, from dim_customer. Dates typed, nothing filtered."
+    columns:
+      - name: customer_id
+        description: "{{ doc('customer_id') }}"
+        data_tests:
+          - unique
+          - not_null
+      - name: name
+        description: "Customer full name."
+      - name: email
+        description: "Customer email. NULL when unknown (10 customers)."
+        data_tests:
+          - not_null:
+              config:
+                severity: warn
+      - name: city_id
+        description: "City of the customer (stg_cities)."
+      - name: signup_date
+        description: "Date the customer signed up. Note: 238 orders predate it (the generator draws the dates independently)."
+
+  - name: stg_orders
+    description: "One row per order, from fact_orders, all statuses. Timestamp typed; deliberately no filter (a status filter here once dropped 449 of 1,500 orders unnoticed)."
+    columns:
+      - name: order_id
+        description: "{{ doc('order_id') }}"
+        data_tests:
+          - unique
+          - not_null
+      - name: customer_id
+        description: "{{ doc('customer_id') }}"
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('stg_customers')
+                field: customer_id
+      - name: ordered_at
+        description: "When the order was placed (TIMESTAMP, cast from the ISO text of the source)."
+      - name: status
+        description: "{{ doc('order_status') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['completed', 'shipped', 'cancelled', 'refunded']
+
+  - name: stg_order_items
+    description: "One row per order line, from fact_order_items. No computation here: see int_order_items for the line total."
+    columns:
+      - name: order_item_id
+        description: "Primary key of the line."
+      - name: order_id
+        description: "{{ doc('order_id') }}"
+      - name: product_id
+        description: "Product sold (stg_products)."
+      - name: quantity
+        description: "Units sold, always positive."
+      - name: unit_price
+        description: "Price per unit at the time of the order (differs from the product list price on 2,642 of 2,643 lines, so never use list_price for revenue)."
+      - name: discount_pct
+        description: "Discount in percent (0-100). NULL means unknown, which is not the same as 0 (266 lines)."
+
+  - name: stg_products
+    description: "One row per product, from dim_product."
+    columns:
+      - name: product_id
+        description: "Primary key of the product."
+      - name: product_name
+        description: "Product name."
+      - name: category_id
+        description: "Category of the product (self-referencing category tree, not staged yet)."
+      - name: seller_id
+        description: "Seller of the product (not staged yet)."
+      - name: list_price
+        description: "Catalogue price, always positive."
+
+  - name: stg_cities
+    description: "One row per city, from dim_city."
+    columns:
+      - name: city_id
+        description: "Primary key of the city."
+      - name: city_name
+        description: "City name."
+      - name: country_id
+        description: "Country of the city (stg_countries)."
+
+  - name: stg_countries
+    description: "One row per country, from dim_country."
+    columns:
+      - name: country_id
+        description: "Primary key of the country."
+      - name: country_name
+        description: "Country name, unique."
+      - name: region
+        description: "Geographic region the country belongs to."

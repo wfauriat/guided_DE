@@ -6,4 +6,8 @@ sources:
     schema: main
     tables:
       - name: dim_customer
+      - name: dim_city
+      - name: dim_country
+      - name: dim_product
       - name: fact_orders
+      - name: fact_order_items

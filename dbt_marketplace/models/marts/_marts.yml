@@ -1,0 +1,82 @@
+version: 2
+
+models:
+  - name: customer_orders
+    description: "One row per customer with their number of orders (all statuses). Customers without orders appear with 0."
+    columns:
+      - name: customer_id
+        description: "{{ doc('customer_id') }}"
+        data_tests:
+          - unique
+          - not_null
+      - name: name
+        description: "Customer full name."
+      - name: n_orders
+        description: "Number of orders placed by the customer, any status."
+
+  - name: fct_orders_enriched
+    description: "One row per order (all statuses) with customer, city, country and order total. The base for the revenue marts: filter on status there, not here."
+    columns:
+      - name: order_id
+        description: "{{ doc('order_id') }}"
+        data_tests:
+          - unique
+          - not_null
+      - name: ordered_at
+        description: "When the order was placed."
+      - name: status
+        description: "{{ doc('order_status') }}"
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ['completed', 'shipped', 'cancelled', 'refunded']
+      - name: customer_id
+        description: "{{ doc('customer_id') }}"
+      - name: customer_name
+        description: "Customer full name."
+      - name: city_name
+        description: "City of the customer."
+      - name: country_name
+        description: "Country of the customer."
+      - name: region
+        description: "Region of the customer's country."
+      - name: n_items
+        description: "Number of order lines."
+      - name: order_total
+        description: "{{ doc('order_total') }}"
+
+  - name: monthly_revenue
+    description: "Revenue per calendar month, completed orders only. One row per month; the base of the trend model."
+    columns:
+      - name: month
+        description: "First day of the month."
+        data_tests:
+          - unique
+          - not_null
+      - name: n_orders
+        description: "Number of completed orders in the month."
+      - name: revenue
+        description: "Sum of order_total over the month's completed orders, rounded to 2 decimals."
+      - name: avg_order_value
+        description: "Average order_total over the month's completed orders, rounded to 2 decimals."
+
+  - name: monthly_revenue_trend
+    description: "Monthly revenue with month-over-month change, 3-month moving average and running total, built on monthly_revenue with LAG and window frames. One row per month."
+    columns:
+      - name: month
+        description: "First day of the month."
+        data_tests:
+          - unique
+          - not_null
+      - name: n_orders
+        description: "Number of completed orders in the month."
+      - name: revenue
+        description: "Revenue of the month (completed orders)."
+      - name: prev_revenue
+        description: "Revenue of the previous month (LAG). NULL for the first month, deliberately not 0."
+      - name: mom_pct
+        description: "Month-over-month change in percent, one decimal: 100 * (revenue - prev_revenue) / prev_revenue. NULL for the first month."
+      - name: ma3
+        description: "Average revenue of the current and the two previous months (frame: 2 preceding rows to current row). The first two months average fewer rows. ROWS-based: only correct while no calendar month is missing."
+      - name: running_total
+        description: "Cumulative revenue from the first month up to and including this one."

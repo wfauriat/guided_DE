@@ -8,3 +8,5 @@ models:
   dbt_marketplace:
     staging:
       +materialized: view
+    marts:
+      +materialized: table
